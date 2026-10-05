@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lakes Region NH Community Guides | Tanner McKim, REALTOR®</title>
+<meta name="description" content="Flip through free community guides for 20 Lakes Region, NH towns, including Belmont, Gilford, Laconia, Meredith, and Wolfeboro: schools, parks, beaches, restaurants, and commute times.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <span class="brand-line"><strong>Tanner McKim</strong>, REALTOR®<span class="firm"> · Berkshire Hathaway HomeServices Verani Realty</span></span>
+    <span><a href="tel:+16039986409">603-998-6409</a><span class="topbar-email"> · <a href="mailto:tanner.mckim@verani.com">tanner.mckim@verani.com</a></span></span>
+  </div>
+</div>
+
+<header class="hero">
+  <p class="eyebrow">Lakes Region, New Hampshire</p>
+  <h1>Community Guides</h1>
+  <p class="lede">Flip through a guide for each town: schools, healthcare, commute times, parks and trails, beaches, local restaurants, and more. Choose a town to start reading.</p>
+</header>
+
+<div class="search-wrap">
+  <label for="search" style="position:absolute;left:-9999px;">Search towns</label>
+  <input id="search" class="search" type="search" placeholder="Search towns" autocomplete="off">
+</div>
+
+<main class="grid" id="grid" aria-live="polite"></main>
+
+<section class="contact">
+  <div class="contact-inner">
+    <div>
+      <h2>Have questions about a town?</h2>
+      <p>Whether you're thinking about moving to the Lakes Region, buying a place on the lake, or just comparing towns, I'm happy to talk it through. No pressure, just a conversation.</p>
+    </div>
+    <div class="contact-links">
+      <span><strong>Tanner McKim</strong>, REALTOR®</span>
+      <span>Cell (call or text): <a href="tel:+16039986409">603-998-6409</a></span>
+      <span>Office: <a href="tel:+16035271111">603-527-1111</a></span>
+      <a href="mailto:tanner.mckim@verani.com">tanner.mckim@verani.com</a>
+    </div>
+  </div>
+</section>
+<p class="legal">Tanner McKim, REALTOR® | Berkshire Hathaway HomeServices Verani Realty. © 2026 BHH Affiliates, LLC. An independently owned and operated franchisee of BHH Affiliates, LLC. Berkshire Hathaway HomeServices and the Berkshire Hathaway HomeServices symbol are registered service marks of Columbia Insurance Company, a Berkshire Hathaway affiliate. Equal Housing Opportunity. Guide information is believed accurate but not guaranteed; please verify details that matter to your decision.</p>
+
+<script src="guides.js"></script>
+<script>
+(function () {
+  var grid = document.getElementById("grid");
+  var search = document.getElementById("search");
+  function render(filter) {
+    var q = (filter || "").trim().toLowerCase();
+    var list = window.GUIDES.filter(function (g) { return g.name.toLowerCase().indexOf(q) !== -1; });
+    if (!list.length) { grid.innerHTML = '<p class="empty">No towns match "' + q.replace(/[<>&"]/g, "") + '".</p>'; return; }
+    grid.innerHTML = list.map(function (g) {
+      return '<a class="card" href="guide.html?town=' + g.slug + '">' +
+        '<div class="cover"><img src="guides/' + g.slug + '/thumb.webp" alt="Cover of the ' + g.name + ', NH community guide" loading="lazy" width="480" height="621"></div>' +
+        '<p class="town">' + g.name + '</p><span class="open">Open guide →</span></a>';
+    }).join("");
+  }
+  search.addEventListener("input", function () { render(search.value); });
+  render("");
+})();
+</script>
+</body>
+</html>

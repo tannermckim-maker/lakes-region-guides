@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Community Guide | Tanner McKim, REALTOR®</title>
+<meta name="description" content="Flip through a Lakes Region, NH community guide: schools, healthcare, commute times, parks, beaches, and local favorites.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="viewer-body">
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <span class="brand-line"><strong>Tanner McKim</strong>, REALTOR®<span class="firm"> · Berkshire Hathaway HomeServices Verani Realty</span></span>
+    <span><a href="tel:+16039986409">603-998-6409</a><span class="topbar-email"> · <a href="mailto:tanner.mckim@verani.com">tanner.mckim@verani.com</a></span></span>
+  </div>
+</div>
+
+<div class="viewer-head" id="head">
+  <div>
+    <a class="back-link" href="index.html">← All community guides</a>
+    <h1 class="viewer-title" id="title">Community Guide</h1>
+  </div>
+  <div class="actions">
+    <label for="townSelect" style="position:absolute;left:-9999px;">Choose another town</label>
+    <select id="townSelect" class="town-select"></select>
+    <button class="btn" id="zoomBtn" type="button">⤢ Full size</button>
+    <a class="btn" id="pdfBtn" href="#" download>↓ PDF</a>
+    <a class="btn primary call-btn" href="tel:+16039986409">Call Tanner</a>
+  </div>
+</div>
+
+<main class="stage" id="stage">
+  <div class="book-area" id="bookArea"><p class="loading">Opening guide…</p></div>
+  <div class="pager">
+    <span id="pageLabel"></span>
+    <div class="dots" id="dots"></div>
+  </div>
+  <p class="hint" id="hint">Tap the page or use the arrows to turn pages.</p>
+</main>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Full-size page view">
+  <button class="close" id="closeLb" type="button">Close ✕</button>
+  <div class="lightbox-inner" id="lbInner"></div>
+</div>
+
+<section class="contact">
+  <div class="contact-inner">
+    <div>
+      <h2>Curious about this town?</h2>
+      <p>I'm happy to answer questions, compare towns with you, or talk through what you're looking for in the Lakes Region. No pressure, just a conversation.</p>
+    </div>
+    <div class="contact-links">
+      <span><strong>Tanner McKim</strong>, REALTOR®</span>
+      <span>Cell (call or text): <a href="tel:+16039986409">603-998-6409</a></span>
+      <span>Office: <a href="tel:+16035271111">603-527-1111</a></span>
+      <a href="mailto:tanner.mckim@verani.com">tanner.mckim@verani.com</a>
+    </div>
+  </div>
+</section>
+<p class="legal">Tanner McKim, REALTOR® | Berkshire Hathaway HomeServices Verani Realty. © 2026 BHH Affiliates, LLC. An independently owned and operated franchisee of BHH Affiliates, LLC. Berkshire Hathaway HomeServices and the Berkshire Hathaway HomeServices symbol are registered service marks of Columbia Insurance Company, a Berkshire Hathaway affiliate. Equal Housing Opportunity. Guide information is believed accurate but not guaranteed; please verify details that matter to your decision.</p>
+
+<script src="guides.js"></script>
+<script>
+(function () {
+  "use strict";
+  var RATIO = 1275 / 1650;           // page width / height
+  var FLIP_MS = 800;
+
+  var params = new URLSearchParams(location.search);
+  var slug = params.get("town");
+  var guide = window.GUIDES.filter(function (g) { return g.slug === slug; })[0];
+  if (!guide) { location.replace("index.html"); return; }
+
+  var n = guide.pages;
+  var L = Math.ceil(n / 2);           // leaves in spread mode
+  var srcs = [];
+  for (var i = 1; i <= n; i++) srcs.push("guides/" + guide.slug + "/" + i + ".webp");
+
+  // ----- header -----
+  var titleText = guide.name + ", NH Community Guide";
+  document.getElementById("title").textContent = titleText;
+  document.title = titleText + " | Tanner McKim, REALTOR®";
+  var pdf = document.getElementById("pdfBtn");
+  pdf.href = "pdf/" + guide.slug + "-community-guide.pdf";
+  pdf.setAttribute("download", guide.name + " NH Community Guide.pdf");
+  var sel = document.getElementById("townSelect");
+  sel.innerHTML = window.GUIDES.map(function (g) {
+    return '<option value="' + g.slug + '"' + (g.slug === guide.slug ? " selected" : "") + ">" + g.name + "</option>";
+  }).join("");
+  sel.addEventListener("change", function () { location.href = "guide.html?town=" + sel.value; });
+
+  // ----- state -----
+  var area = document.getElementById("bookArea");
+  var label = document.getElementById("pageLabel");
+  var dotsEl = document.getElementById("dots");
+  var mode = null;        // "spread" | "single"
+  var k = 0;              // spread position: leaves flipped (0..L)
+  var p = 0;              // single position: page index (0..n-1)
+  var pw = 0, ph = 0;     // page size in px
+  var busy = false;
+  var book, leaves, shadow, singlePage, prevBtn, nextBtn;
+
+  function pickLayout() {
+    var head = document.getElementById("head").getBoundingClientRect();
+    var availH = Math.max(320, window.innerHeight - head.bottom - 96);
+    var availW = Math.min(window.innerWidth, 1400) - 32;
+    var spreadW = Math.min(availH * RATIO, (availW - 120) / 2);
+    if (window.innerWidth >= 820 && spreadW >= 270) {
+      return { mode: "spread", w: Math.floor(spreadW) };
+    }
+    var singleW = Math.min(availH * RATIO, availW - 24, 560);
+    return { mode: "single", w: Math.floor(Math.max(220, singleW)) };
+  }
+
+  function img(src, alt) {
+    var im = document.createElement("img");
+    im.src = src; im.alt = alt; im.draggable = false; im.decoding = "async";
+    return im;
+  }
+  function pageAlt(i) {
+    return guide.name + " community guide, " + (i === 0 ? "front cover" : i === n - 1 ? "back cover" : "page " + (i + 1));
+  }
+
+  function makeNav() {
+    prevBtn = document.createElement("button");
+    prevBtn.className = "nav-btn prev"; prevBtn.type = "button"; prevBtn.innerHTML = "‹"; prevBtn.setAttribute("aria-label", "Previous page");
+    nextBtn = document.createElement("button");
+    nextBtn.className = "nav-btn next"; nextBtn.type = "button"; nextBtn.innerHTML = "›"; nextBtn.setAttribute("aria-label", "Next page");
+    prevBtn.addEventListener("click", prev);
+    nextBtn.addEventListener("click", next);
+    area.appendChild(prevBtn); area.appendChild(nextBtn);
+  }
+
+  // ----- spread (two-page book) -----
+  function zFor(i) { return i < k ? i + 1 : 2 * L - i + 1; }
+  function buildSpread() {
+    area.innerHTML = "";
+    book = document.createElement("div");
+    book.className = "book";
+    book.style.width = (pw * 2) + "px";
+    book.style.height = ph + "px";
+    shadow = document.createElement("div");
+    shadow.className = "shadow";
+    book.appendChild(shadow);
+    leaves = [];
+    for (var i = 0; i < L; i++) {
+      var leaf = document.createElement("div");
+      leaf.className = "leaf" + (i < k ? " flipped" : "");
+      leaf.style.zIndex = zFor(i);
+      var front = document.createElement("div"); front.className = "face front";
+      front.appendChild(img(srcs[2 * i], pageAlt(2 * i)));
+      var back = document.createElement("div"); back.className = "face back";
+      if (srcs[2 * i + 1]) back.appendChild(img(srcs[2 * i + 1], pageAlt(2 * i + 1)));
+      leaf.appendChild(front); leaf.appendChild(back);
+      (function (idx) {
+        leaf.addEventListener("click", function () { if (idx < k) prev(); else next(); });
+      })(i);
+      book.appendChild(leaf);
+      leaves.push(leaf);
+    }
+    area.appendChild(book);
+    makeNav();
+    placeSpread(false);
+  }
+  function placeSpread(animate) {
+    if (!animate) { book.style.transition = "none"; shadow.style.transition = "none"; }
+    var shift = k === 0 ? -pw / 2 : (k === L ? pw / 2 : 0);
+    book.style.transform = "translateX(" + shift + "px)";
+    if (k === 0) { shadow.style.left = "50%"; shadow.style.width = "50%"; }
+    else if (k === L) { shadow.style.left = "0"; shadow.style.width = "50%"; }
+    else { shadow.style.left = "0"; shadow.style.width = "100%"; }
+    if (!animate) { void book.offsetWidth; book.style.transition = ""; shadow.style.transition = ""; }
+    updateUi();
+  }
+  function flipTo(newK) {
+    if (busy || newK < 0 || newK > L || newK === k) return;
+    busy = true;
+    var forward = newK > k;
+    var leaf = leaves[forward ? k : k - 1];
+    leaf.style.zIndex = 100;
+    k = newK;
+    leaf.classList.toggle("flipped", forward);
+    placeSpread(true);
+    setTimeout(function () {
+      leaves.forEach(function (lf, i) { lf.style.zIndex = zFor(i); });
+      busy = false;
+    }, FLIP_MS);
+  }
+
+  // ----- single page (phones) -----
+  function buildSingle() {
+    area.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "single";
+    wrap.style.width = pw + "px"; wrap.style.height = ph + "px";
+    singlePage = document.createElement("div");
+    singlePage.className = "page";
+    singlePage.appendChild(img(srcs[p], pageAlt(p)));
+    singlePage.addEventListener("click", function (e) {
+      var r = singlePage.getBoundingClientRect();
+      if (e.clientX - r.left < r.width * 0.35) prev(); else next();
+    });
+    wrap.appendChild(singlePage);
+    area.appendChild(wrap);
+    makeNav();
+    updateUi();
+  }
+  function turnTo(newP) {
+    if (busy || newP < 0 || newP >= n || newP === p) return;
+    busy = true;
+    var forward = newP > p;
+    singlePage.classList.add(forward ? "out-next" : "out-prev");
+    setTimeout(function () {
+      p = newP;
+      var im = singlePage.querySelector("img");
+      im.src = srcs[p]; im.alt = pageAlt(p);
+      singlePage.classList.remove("out-next", "out-prev");
+      singlePage.classList.add("in");
+      singlePage.style.transformOrigin = forward ? "right center" : "left center";
+      singlePage.style.transform = forward ? "rotateY(88deg)" : "rotateY(-88deg)";
+      void singlePage.offsetWidth;
+      singlePage.classList.remove("in");
+      singlePage.style.transform = "";
+      setTimeout(function () { singlePage.style.transformOrigin = ""; busy = false; }, 300);
+      updateUi();
+    }, 280);
+  }
+
+  // ----- shared -----
+  function positions() { return mode === "spread" ? L + 1 : n; }
+  function pos() { return mode === "spread" ? k : p; }
+  function next() { mode === "spread" ? flipTo(k + 1) : turnTo(p + 1); }
+  function prev() { mode === "spread" ? flipTo(k - 1) : turnTo(p - 1); }
+  function goPos(i) { mode === "spread" ? flipTo(i) : turnTo(i); }
+  function visiblePages() {
+    if (mode === "single") return [p];
+    if (k === 0) return [0];
+    if (k === L) return [n - 1];
+    return [2 * k - 1, 2 * k].filter(function (i) { return i < n; });
+  }
+  function updateUi() {
+    var vis = visiblePages();
+    var txt;
+    if (vis.length === 1 && vis[0] === 0) txt = "Front cover";
+    else if (vis.length === 1 && vis[0] === n - 1) txt = "Back cover";
+    else if (vis.length === 2) txt = "Pages " + (vis[0] + 1) + "–" + (vis[1] + 1) + " of " + n;
+    else txt = "Page " + (vis[0] + 1) + " of " + n;
+    label.textContent = txt;
+    var total = positions(), cur = pos();
+    if (dotsEl.childElementCount !== total) {
+      dotsEl.innerHTML = "";
+      for (var i = 0; i < total; i++) {
+        var b = document.createElement("button");
+        b.type = "button"; b.setAttribute("aria-label", "Go to position " + (i + 1));
+        (function (idx) { b.addEventListener("click", function () { goPos(idx); }); })(i);
+        dotsEl.appendChild(b);
+      }
+    }
+    Array.prototype.forEach.call(dotsEl.children, function (b, i) { b.classList.toggle("on", i === cur); });
+    if (prevBtn) prevBtn.disabled = cur === 0;
+    if (nextBtn) nextBtn.disabled = cur === total - 1;
+  }
+
+  function layout(force) {
+    var lay = pickLayout();
+    var modeChanged = lay.mode !== mode;
+    if (modeChanged && mode) {
+      // keep the reader's place when switching between phone and desktop layouts
+      if (lay.mode === "single") p = k === 0 ? 0 : (k === L ? n - 1 : 2 * k - 1);
+      else k = Math.ceil(p / 2);
+    }
+    if (!force && !modeChanged && lay.w === pw) return;
+    mode = lay.mode; pw = lay.w; ph = Math.round(pw / RATIO);
+    busy = false;
+    if (mode === "spread") buildSpread(); else buildSingle();
+    document.getElementById("hint").textContent = mode === "spread"
+      ? "Click a page or use the arrow keys to turn pages."
+      : "Tap the right side of the page or swipe to turn pages.";
+  }
+
+  // ----- input -----
+  document.addEventListener("keydown", function (e) {
+    if (lb.classList.contains("open")) { if (e.key === "Escape") closeLb(); return; }
+    if (e.target && e.target.tagName === "SELECT") return;
+    if (e.key === "ArrowRight") { next(); e.preventDefault(); }
+    if (e.key === "ArrowLeft") { prev(); e.preventDefault(); }
+  });
+  var tx = null, ty = null;
+  area.addEventListener("touchstart", function (e) {
+    if (e.touches.length !== 1) { tx = null; return; }
+    tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+  }, { passive: true });
+  area.addEventListener("touchend", function (e) {
+    if (tx === null) return;
+    var dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    tx = null;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) { dx < 0 ? next() : prev(); }
+  });
+  var rt;
+  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { layout(false); }, 150); });
+
+  // ----- full-size view -----
+  var lb = document.getElementById("lightbox");
+  var lbInner = document.getElementById("lbInner");
+  function openLb() {
+    lbInner.innerHTML = "";
+    visiblePages().forEach(function (i) { lbInner.appendChild(img(srcs[i], pageAlt(i))); });
+    lb.classList.add("open"); lb.scrollTop = 0;
+    document.body.style.overflow = "hidden";
+    document.getElementById("closeLb").focus();
+  }
+  function closeLb() { lb.classList.remove("open"); document.body.style.overflow = ""; }
+  document.getElementById("zoomBtn").addEventListener("click", openLb);
+  document.getElementById("closeLb").addEventListener("click", closeLb);
+  lb.addEventListener("click", function (e) { if (e.target === lb || e.target === lbInner) closeLb(); });
+
+  // ----- start: wait for the cover, preload the rest -----
+  var cover = new Image();
+  var started = false;
+  function start() { if (started) return; started = true; layout(true); }
+  cover.onload = start; cover.onerror = start;
+  cover.src = srcs[0];
+  setTimeout(start, 2500);
+  srcs.slice(1).forEach(function (s) { var im = new Image(); im.src = s; });
+})();
+</script>
+</body>
+</html>
